@@ -3,7 +3,6 @@ use quote::{quote, ToTokens};
 use syn::LitStr;
 use syn::Type;
 
-
 pub struct FieldSetter {
     pub is_flatten: bool,
     pub name: Ident,
@@ -13,7 +12,6 @@ pub struct FieldSetter {
 }
 
 impl ToTokens for FieldSetter {
-
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let tag_name = &self.tag_name;
         let field = &self.name;
@@ -31,7 +29,7 @@ impl ToTokens for FieldSetter {
             let _dbg = "Field";
             let should_parse = xa_tag_name == #tag_name;
             if should_parse {
-                match #ty::from_xml(&mut reader, Some(&event), xa_stop_on_tag) {
+                match <#ty>::from_xml(&mut reader, Some(&event), xa_stop_on_tag) {
                     Ok(t_value) => { #field = t_value; continue; },
                     Err(err) => {
                         let msg = "Error parsing XML field - ";

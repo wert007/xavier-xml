@@ -1,23 +1,24 @@
+use quick_xml::events::Event;
 use std::panic;
 use std::panic::{AssertUnwindSafe, PanicHookInfo};
 use std::sync::{Arc, Mutex};
-use quick_xml::events::Event;
-pub use xavier_derive::XmlSerializable;
 pub use xavier_derive::XmlDeserializable;
+pub use xavier_derive::XmlSerializable;
+pub use xavier_internal::deserialize::spanned::Spanned;
 
-pub use xavier_internal::serialize::macro_trait::XmlSerializable;
-pub use xavier_internal::deserialize::macro_trait::XmlDeserializable;
-pub use xavier_internal::deserialize::error::PError;
-pub use xavier_internal::encode;
-pub use xavier_internal::namespaces;
 pub use xavier_internal::cdata;
 pub use xavier_internal::declaration;
-pub use xavier_internal::doctype;
 pub use xavier_internal::decode;
+pub use xavier_internal::deserialize::error::PError;
+pub use xavier_internal::deserialize::macro_trait::XmlDeserializable;
+pub use xavier_internal::doctype;
+pub use xavier_internal::encode;
 pub use xavier_internal::instructions;
+pub use xavier_internal::namespaces;
+pub use xavier_internal::serialize::macro_trait::XmlSerializable;
 
-pub use xavier_internal::serialize;
 pub use xavier_internal::deserialize;
+pub use xavier_internal::serialize;
 
 pub use ::quick_xml;
 
@@ -33,7 +34,11 @@ pub fn from_xml<T: XmlDeserializable>(xml: &str) -> Result<T, PError> {
 pub fn from_xml_using_builder<T, B>(xml: &str, builder: B) -> Result<Option<T>, PError>
 where
     T: XmlDeserializable,
-    B: Fn(&mut quick_xml::Reader<&[u8]>, Option<&quick_xml::events::BytesStart<'_>>, Option<&str>) -> Result<Option<T>, PError>,
+    B: Fn(
+        &mut quick_xml::Reader<&[u8]>,
+        Option<&quick_xml::events::BytesStart<'_>>,
+        Option<&str>,
+    ) -> Result<Option<T>, PError>,
 {
     if xml.trim().is_empty() {
         return Err(PError::new("Empty XML or whitespace-only content"));
@@ -52,36 +57,39 @@ where
         }
     }));
 
-    let result = panic::catch_unwind(AssertUnwindSafe( || {
-
+    let result = panic::catch_unwind(AssertUnwindSafe(|| {
         let mut reader = quick_xml::Reader::from_str(&xml);
         reader.config_mut().expand_empty_elements = true;
         let found_element = false;
 
         loop {
             match reader.read_event() {
-                Err(error) =>  {
-                    return Err(PError::new(&format!("Error at position {}: {:?}", reader.buffer_position(), error)))
-                },
+                Err(error) => {
+                    return Err(PError::new(&format!(
+                        "Error at position {}: {:?}",
+                        reader.buffer_position(),
+                        error
+                    )))
+                }
                 Ok(Event::Eof) => {
                     if !found_element {
                         return Err(PError::new("No valid XML element found"));
                     }
                     break;
-                },
+                }
                 Ok(Event::Start(event)) => {
                     return Ok::<Option<T>, PError>(builder(&mut reader, Some(&event), None)?)
-                },
-                Ok(Event::End(_)) => {},
+                }
+                Ok(Event::End(_)) => {}
                 Ok(Event::Empty(_)) => {
                     return Ok::<Option<T>, PError>(builder(&mut reader, None, None)?)
-                },
-                Ok(Event::Comment(_)) => {},
-                Ok(Event::Text(_)) => {},
-                Ok(Event::CData(_)) => {},
-                Ok(Event::Decl(_)) => {},
-                Ok(Event::PI(_)) => {},
-                Ok(Event::DocType(_)) => {},
+                }
+                Ok(Event::Comment(_)) => {}
+                Ok(Event::Text(_)) => {}
+                Ok(Event::CData(_)) => {}
+                Ok(Event::Decl(_)) => {}
+                Ok(Event::PI(_)) => {}
+                Ok(Event::DocType(_)) => {}
             }
         }
 
@@ -89,7 +97,10 @@ where
     }));
 
     if let Err(_error) = result {
-        Err(PError::new(&format!("Some error occurred in XML parser. Cause: {}", panic_info.lock().unwrap())))
+        Err(PError::new(&format!(
+            "Some error occurred in XML parser. Cause: {}",
+            panic_info.lock().unwrap()
+        )))
     } else if let Ok(result) = result {
         Ok(result?)
     } else {
